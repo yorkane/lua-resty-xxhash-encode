@@ -3,74 +3,29 @@ local tostring, tonumber, reverse, floor, byte, sub, char = tostring, tonumber, 
 local type = type
 local ceil = math.ceil
 local ffi = require "ffi"
-local ffi_new = ffi.new
-local ffi_string = ffi.string
-
 local ffi_utils = require('klib.base.ffi_utils')
 local get_string_buf = ffi_utils.get_string_buf
 local create_int_list = ffi_utils.create_number_list
+local ffi_string = ffi.string
 local bit = require('bit')
 local band, bor, bxor, lshift, rshift, rolm, bnot = bit.band, bit.bor, bit.bxor, bit.lshift, bit.rshift, bit.rol, bit.bnot
 local new_tab, insert, mod = table.new, table.insert, math.fmod
 
 local array, hashmap, release, fetch, new_tab = require('resty.tablepool').locally()
-local function load_shared_lib(so_name)
-	local string_gmatch = string.gmatch
-	local string_match = string.match
-	local io_open = io.open
-	local io_close = io.close
 
-	local cpath = package.cpath
-	local tried_paths = new_tab(32, 0)
-	local i = 1
-
-	for k, _ in string_gmatch(cpath, "[^;]+") do
-		local fpath = string_match(k, "(.*/)")
-		fpath = fpath .. so_name
-		-- Don't get me wrong, the only way to know if a file exist is trying
-		-- to open it.
-		local f = io_open(fpath)
-		if f ~= nil then
-			io_close(f)
-			return ffi.load(fpath)
-		end
-		tried_paths[i] = fpath
-		i = i + 1
-	end
-	return nil, tried_paths
-end
-
-local str_buf_size = 4096
-local function get_string_buf(size)
-	if size > str_buf_size then
-		return ffi_new(c_buf_type, size)
-	end
-	if not str_buf then
-		str_buf = ffi_new(c_buf_type, str_buf_size)
-	end
-	return str_buf
-end
-
-
-
-	local _M = {
-	version = "1.3.1",
+local _M = {
+	version = "1.3.2",
 	max_int = 4294967295,
 	max_int_b64 = 'D_____',
 	max_long = 9199999999999999999,
 	max_long_b64 = 'H-s90GdmAAA',
 	max_int_chars = 'ÿÿÿÿ' -- This value will be overwritten by following code
 }
-
-
-local lib_name = "librestyxxhashencode.so"
-if ffi.os == "OSX" then
-	lib_name = "librestyxxhashencode.dylib"
-end
-
-
-local encoding, tried_paths = load_shared_lib(lib_name)
-
+--local encoding = ffi_utils.load_shared_lib("klib/base/encoding.so")
+--local encoding = ffi_utils.load_shared_lib("librestyxxhashencode.so")
+local encoding = ffi.load("/usr/lib/lua/5.1/librestyxxhashencode.so")
+--local encoding = ffi.load("/usr/lib/lua/5.1/encoding.so")
+_M.encode = encoding
 ffi.cdef([[
 size_t modp_b64_encode(char* dest, unsigned char* str, size_t len,
     uint32_t no_padding);
@@ -100,7 +55,11 @@ unsigned int xxhash32(const char* str, size_t length,  unsigned int seed);
 unsigned long long  xxhash64(const char* str, size_t length, unsigned long long const seed);
 unsigned int get_unsigned_int(const char *buffer, int offset, int length);
 unsigned int get_unsigned_int_from(int a, int b, int c, int d);
-size_t get_bytes_from_unsigned_int(char *dest, unsigned int const num, int len);
+
+size_t uint_bytes(char *dest, uint32_t num);
+size_t bytes_uint(const char *str, size_t index, int length);
+size_t uint64_bytes(char *dest, uint64_t num);
+uint64_t bytes_uint64(const char *buffer, size_t offset, int length);
 ]])
 
 local function check_encode_str(s)
@@ -382,19 +341,19 @@ end
 ---@return string @ base64 string
 function _M.int_base64(int, length)
 	local ext
-	if int > _M.max_int then
-		ext = int % 10 -- get extra digit
-		int = floor(int / 10) -- 10 time smaller
-	end
+	--if int > _M.max_int then
+	--	ext = int % 10 -- get extra digit
+	--	int = floor(int / 10) -- 10 time smaller
+	--end
 	local dst = get_string_buf(7)
 	local r_dlen = encoding.int_base64(dst, int)
 	if r_dlen == -1 then
 		return nil, "invalid input"
 	end
 	local str
-	if ext then
-		str = ffi_string(dst, r_dlen) .. '_' .. ext -- attach the extra digit as `Byp_5-_7`
-	end
+	--if ext then
+	--	str =  (dst, r_dlen) .. '_' .. ext -- attach the extra digit as `Byp_5-_7`
+	--end
 	str = ffi_string(dst, r_dlen)
 	if length then
 		local len = #str
@@ -406,8 +365,8 @@ function _M.int_base64(int, length)
 end
 
 ---base64_int
----@param b64_str string @ max `B_____`
----@return number @ int number max 2147483647
+---@param b64_str string @ max `D_____`
+---@return number @ int number max 4294967295
 function _M.base64_int(b64_str)
 	local ext
 	local len = #b64_str -- normal int will not exceed 6 chars
@@ -430,7 +389,7 @@ function _M.long_base64(long)
 	if r_dlen == -1 then
 		return nil, "invalid input"
 	end
-	return reverse(ffi_string(dst, r_dlen))
+	return ffi_string(dst, r_dlen)
 end
 
 ---base64_long
@@ -453,7 +412,7 @@ function _M.xxhash64_b64(str, seed)
 	if r_dlen == -1 then
 		return nil, "invalid input"
 	end
-	return ffi_string(dst, 11)
+	return ffi_string(dst, r_dlen)
 	--return reverse(ffi_string(dst, r_dlen))
 end
 
@@ -468,7 +427,7 @@ function _M.xxhash32_b64(str, seed)
 		return nil, "invalid input"
 	end
 	--return reverse(ffi_string(dst, r_dlen))
-	return ffi_string(dst, 7)
+	return ffi_string(dst, r_dlen)
 	--	local int = encoding.xxhash32(str, #str, seed or 33)
 	--	local dst = get_string_buf(7)
 	--	local r_dlen = encoding.int_base64(dst, int)
@@ -496,7 +455,7 @@ function _M.xxhash32(str, seed)
 	return n
 end
 
----int_byte convert unsigned int into `4 bytes` performance HI
+---int_byte convert unsigned int into `4 bytes` with high performance
 ---@param int_num number @ max number: 21474836479 as `255,255,255,255`
 ---@param length number @ the char byte length. small number will padding with char(0)
 ---@return string @ chars based byte, could process by ngx.encode_base64
@@ -550,25 +509,6 @@ end
 
 _M.max_int_chars = _M.uint_byte(4294967295)
 
------uint_byte
------@param num number @ less than 4294967295
------@param len number @the max byte length 1<=len<= 4
------@return string
---function _M.uint_byte(num, len)
---	len = len or 4
---	local dst = get_string_buf(len)
---	local r_dlen = encoding.get_bytes_from_unsigned_int(dst, num, len)
---	if r_dlen == -1 then
---		return nil, "invalid input"
---	end
---	return ffi_string(dst, len)
---end
---local n232 = 2 ^ 32 --4294967296
---local n224 = 2 ^ 24 --16777216
---local n216 = 2 ^      16777215
---local n28 = 2 ^ 8
-
-
 ---byte_int convert `4 byte string` into number
 ---@param byte_str string @char bytes max is `ÿÿÿÿ`
 ---@return number @ unsigned int max number = 21474836479
@@ -598,6 +538,7 @@ function _M.byte_uint(byte_str, start_index, length)
 	if n < 0 then
 		n = n232 + n
 	end--]]
+	--n = encoding.get_unsigned_int(byte_str, 0, 1) -- by using c program to speedup
 	n = encoding.get_unsigned_int(byte_str, start_index, length or 4) -- by using c program to speedup
 	return n
 end
@@ -675,6 +616,26 @@ function _M.int_arr_bytes(int_arr, seed)
 	end
 	table.remove(int_arr, 1)
 	return concat(int_arr)
+end
+
+function _M.uint_bytes(unsigned_int)
+	local buff = get_string_buf(4)
+	local size = encoding.uint_bytes(buff, unsigned_int)
+	return ffi_string(buff, size)
+end
+
+function _M.bytes_uint(byte_buff, index, length)
+	return encoding.bytes_uint(byte_buff, index, length)
+end
+
+function _M.uint64_bytes(unsigned_int64)
+	local buff = get_string_buf(4)
+	local size = encoding.uint_bytes(buff, unsigned_int64)
+	return ffi_string(buff, size)
+end
+
+function _M.bytes_uint64(byte_buff, index, length)
+	return encoding.bytes_uint(byte_buff, index, length)
 end
 
 function _M.long_byte(num)

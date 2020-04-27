@@ -1,13 +1,14 @@
 /**
  * from https://github.com/spacewander/lua-resty-base-encoding
  * yum install -y xxhash-devel # for xxhash.h
- * \file modp_bc64w.c
-/*
- * for base64_long/int/byte conversions
+ * file modp_bc64w.c
+ *
+ * for base4_long/int/byte conversions
  * xxhash required
  */
 // cc -O3 -g -Wall -Wextra -Werror -fpic   -c modp_bc64w.c
 // cc base32.o modp_bc64w.o modp_b64w.o modp_b2.o modp_b85_gen.o modp_b16.o modp_b85.o arraytoc.o modp_b64.o -shared -o encoding.so -L/usr/lib64/ -lxxhash
+// cc modp_bc64w.o -shared -o /usr/lib/lua/5.1/librestyxxhashencode.so -L/usr/lib64/ -lxxhash
 
 /* public header */
 #include "modp_stdint.h"
@@ -40,13 +41,13 @@ static const int b64map[131] = {
     /*111=o*/ 40, /*112=p*/ 41, /*113=q*/ 42, /*114=r*/ 43, /*115=s*/ 44, /*116=t*/ 45, /*117=u*/ 46, /*118=v*/ 47, /*119=w*/ 48, /*120=x*/ 49,
     /*121=y*/ 50, /*122=z*/ 51, /*123={*/ 99, /*124=|*/ 99, /*125=}*/ 99, /*126=~*/ 99, /*127=*/ 99, /*128=€*/ 99, /*129=*/ 99, /*130=‚*/ 99};
 
-static long pow64[12] = {1, 64, 4096, 262144, 16777216, 1073741824, 68719476736, 4398046511104, 281474976710656, 18014398509481984, 1152921504606846976};
+static unsigned long long pow64[12] = {1, 64, 4096, 262144, 16777216, 1073741824, 68719476736, 4398046511104, 281474976710656, 18014398509481984, 1152921504606846976};
 
 uint64_t base64_long(const char *dst, int len)
 {
     int i;
     int k;
-    unsigned long num = 0;
+    unsigned long long num = 0;
     // printf("[%s] C=%d\n", dst, dst[3]);
     // for (i = 1; i < 127; i++)
     // {
@@ -62,18 +63,18 @@ uint64_t base64_long(const char *dst, int len)
         if (n < 99)
         {
             num = num + (n * pow64[len - i]);
-            // printf("[%d]    %c=%d=%d	Pow=%ld\t\ttotal %ld\n", i, k, n, base64_table[n - 1], pow64[len - i], num);
+//             printf("[%d]    %c=%d=%d	Pow=%llu\t\ttotal %llu \n", i, k, n, base64_table[n - 1], pow64[len - i], num);
         }
     }
-    // printf("Total = %ld \n", num);
+//     printf("Total = %llu \n", 64);
     return num;
 }
 
-size_t base64_int(const char *dst, int len)
+uint32_t base64_int(const char *dst, int len)
 {
     int i;
     int k;
-    int num = 0;
+    uint32_t num = 0;
     for (i = len; i >= 0; i--)
     {
         k = dst[i];
@@ -86,7 +87,7 @@ size_t base64_int(const char *dst, int len)
     return num;
 }
 
-size_t int_base64(char *dst, int Value10)
+size_t int_base64(char *dst, uint32_t Value10)
 {
     int size = 0;
     while (Value10 > 0)
@@ -107,25 +108,25 @@ size_t int_base64(char *dst, int Value10)
     return (size_t)size;
 }
 
-size_t long_base64(char *dst, long Value10)
+size_t long_base64(char *dst, unsigned long long Value10)
 {
     int size = 0;
     while (Value10 > 0)
     {
-        long v = fmod(Value10, 64);
-        // printf("%ld mod(64) = %ld \n", Value10, v);
+        unsigned long long v = Value10 % 64;
+//         printf("%llu mod(64) = %llu %c \n", Value10, v, base64_table[v]);
         dst[size] = base64_table[v];
         Value10 /= 64;
         size++;
     }
-    // int i = 0;
-    // int temp = 0;
-    // for (i = 0; i < (size / 2); i++)
-    // {
-    //     temp = dst[i];
-    //     dst[i] = dst[size - i - 1];
-    //     dst[size - i - 1] = temp;
-    // }
+     int i = 0;
+     int temp = 0;
+     for (i = 0; i < (size / 2); i++)
+     {
+         temp = dst[i];
+         dst[i] = dst[size - i - 1];
+         dst[size - i - 1] = temp;
+     }
     return (size_t)size;
 }
 
@@ -138,43 +139,87 @@ uint32_t xxhash32(const char *str, size_t length, unsigned int const seed)
 uint64_t xxhash64(const char *str, size_t length, unsigned long long const seed)
 {
     unsigned long long const hash = XXH64(str, length, seed);
+//    printf("xxhash64(%s) = %llu \n",str,  hash);
+    unsigned long long Value10 = hash;
+    unsigned char dst[8];
+        int size = 0;
+        while (Value10 > 0)
+        {
+            long v = fmod(Value10, 64);
+            // printf("%ld mod(64) = %ld \n", Value10, v);
+            dst[size] = base64_table[v];
+            Value10 /= 64;
+            size++;
+        }
+     int i = 0;
+     int temp = 0;
+     for (i = 0; i < (size / 2); i++)
+     {
+         temp = dst[i];
+         dst[i] = dst[size - i - 1];
+         dst[size - i - 1] = temp;
+     }
+//    printf("xxhash64 base64(%s) = %llu \n", dst, hash);
     return hash;
 }
 
 size_t xxhash64_b64(char *dest, const char *str, size_t length, unsigned long long const seed)
 {
     unsigned long long lhash = xxhash64(str, length, seed);
-    unsigned char bytes[8];
-    bytes[0] = (lhash >> 56) & 0xFF;
-    bytes[1] = (lhash >> 48) & 0xFF;
-    bytes[2] = (lhash >> 40) & 0xFF;
-    bytes[3] = (lhash >> 32) & 0xFF;
-    bytes[4] = (lhash >> 24) & 0xFF;
-    bytes[5] = (lhash >> 16) & 0xFF;
-    bytes[6] = (lhash >> 8) & 0xFF;
-    bytes[7] = lhash & 0xFF;
-    return modp_b64w_encode(dest, bytes, 8);
+    return long_base64(dest, lhash);
+//    unsigned char bytes[8];
+//    bytes[0] = (lhash >> 56) & 0xFF;
+//    bytes[1] = (lhash >> 48) & 0xFF;
+//    bytes[2] = (lhash >> 40) & 0xFF;
+//    bytes[3] = (lhash >> 32) & 0xFF;
+//    bytes[4] = (lhash >> 24) & 0xFF;
+//    bytes[5] = (lhash >> 16) & 0xFF;
+//    bytes[6] = (lhash >> 8) & 0xFF;
+//    bytes[7] = lhash & 0xFF;
+//    return modp_b64w_encode(dest, bytes, 8);
 }
 
 size_t xxhash32_b64(char *dest, const char *str, size_t length, unsigned int const seed)
 {
     unsigned int lhash = xxhash32(str, length, seed);
-    unsigned char bytes[4];
-    bytes[0] = (lhash >> 24) & 0xFF;
-    bytes[1] = (lhash >> 16) & 0xFF;
-    bytes[2] = (lhash >> 8) & 0xFF;
-    bytes[3] = lhash & 0xFF;
-    return modp_b64w_encode(dest, bytes, 4);
+    return int_base64(dest, lhash);
+//    unsigned char bytes[4];
+//    bytes[0] = (lhash >> 24) & 0xFF;
+//    bytes[1] = (lhash >> 16) & 0xFF;
+//    bytes[2] = (lhash >> 8) & 0xFF;
+//    bytes[3] = lhash & 0xFF;
+//    return modp_b64w_encode(dest, bytes, 4);
 }
 
-uint32_t get_unsigned_int(const char *buffer, int offset)
+uint32_t get_unsigned_int(const char *buffer, int offset, int length)
 {
-    return (
-        ((buffer[offset + 3]) & 0x000000FF) |
-        ((buffer[offset + 2] << 8) & 0x0000FF00) |
-        ((buffer[offset + 1] << 16) & 0x00FF0000) |
-        ((buffer[offset] << 24) & 0xFF000000));
+	if (length == 4 || length <= 0) {
+	return (
+            ((buffer[offset + 3]) & 0x000000FF) |
+            ((buffer[offset + 2] << 8) & 0x0000FF00) |
+            ((buffer[offset + 1] << 16) & 0x00FF0000) |
+            ((buffer[offset] << 24) & 0xFF000000));
+
+	}
+	if (length == 3) {
+    	return (
+    	        ((buffer[offset + 2]) & 0x000000FF) |
+                ((buffer[offset + 1] << 8) & 0x0000FF00) |
+                ((buffer[offset] << 16) & 0x00FF0000)
+                );
+    }
+    if (length == 2) {
+        	return (
+    	        ((buffer[offset + 1]) & 0x000000FF) |
+                ((buffer[offset] << 8) & 0x0000FF00)
+                );
+    }
+    if (length == 1) {
+        	return (((buffer[offset]) & 0x000000FF));
+    }
+    return 0;
 }
+
 
 uint32_t get_unsigned_int_from(int a, int b, int c, int d)
 {
@@ -185,3 +230,163 @@ uint32_t get_unsigned_int_from(int a, int b, int c, int d)
         ((d << 24) & 0xFF000000)
     );
 }
+
+size_t uint_bytes(char *dest, uint32_t num)
+{
+	if (num > 0xFF000000) {
+		dest[0] = (num >> 24) & 0xFF;
+        dest[1] = (num >> 16) & 0xFF;
+        dest[2] = (num >> 8) & 0xFF;
+        dest[3] = num & 0xFF;
+        return 4;
+	} else if (num > 0x00FF0000){
+		dest[0] = (num >> 16) & 0xFF;
+		dest[1] = (num >> 8) & 0xFF;
+		dest[2] = num & 0xFF;
+		return 3;
+	} else if (num > 0x0000FF00){
+		dest[0] = (num >> 8) & 0xFF;
+		dest[1] = num & 0xFF;
+		return 2;
+	} else {
+			dest[0] = num & 0xFF;
+		return 1;
+	}
+	return 0;
+}
+
+size_t bytes_uint(const char *str, size_t index, int length)
+{
+	return get_unsigned_int(str, index, length);
+}
+
+size_t uint64_bytes(char *dest, uint64_t num)
+{
+	if (num > 0xFF00000000000000) {
+		dest[0] = (num >> 56) & 0xFF;
+		dest[1] = (num >> 48) & 0xFF;
+		dest[2] = (num >> 40) & 0xFF;
+		dest[3] = (num >> 32) & 0xFF;
+		dest[4] = (num >> 24) & 0xFF;
+        dest[5] = (num >> 16) & 0xFF;
+        dest[6] = (num >> 8) & 0xFF;
+        dest[7] = num & 0xFF;
+        return 8;
+	}
+	else if (num > 0xFF000000000000) {
+		dest[0] = (num >> 48) & 0xFF;
+		dest[1] = (num >> 40) & 0xFF;
+		dest[2] = (num >> 32) & 0xFF;
+		dest[3] = (num >> 24) & 0xFF;
+        dest[4] = (num >> 16) & 0xFF;
+        dest[5] = (num >> 8) & 0xFF;
+        dest[6] = num & 0xFF;
+        return 7;
+	}
+	else if (num > 0xFF0000000000) {
+		dest[0] = (num >> 40) & 0xFF;
+   		dest[1] = (num >> 32) & 0xFF;
+		dest[2] = (num >> 24) & 0xFF;
+        dest[3] = (num >> 16) & 0xFF;
+        dest[4] = (num >> 8) & 0xFF;
+        dest[5] = num & 0xFF;
+        return 6;
+	}
+	else if (num > 0xFF00000000) {
+		dest[0] = (num >> 32) & 0xFF;
+		dest[1] = (num >> 24) & 0xFF;
+        dest[2] = (num >> 16) & 0xFF;
+        dest[3] = (num >> 8) & 0xFF;
+        dest[4] = num & 0xFF;
+        return 5;
+	}
+	else if (num > 0xFF000000) {
+		dest[0] = (num >> 24) & 0xFF;
+        dest[1] = (num >> 16) & 0xFF;
+        dest[2] = (num >> 8) & 0xFF;
+        dest[3] = num & 0xFF;
+        return 4;
+	} else if (num > 0x00FF0000){
+		dest[0] = (num >> 16) & 0xFF;
+		dest[1] = (num >> 8) & 0xFF;
+		dest[2] = num & 0xFF;
+		return 3;
+	} else if (num > 0x0000FF00){
+		dest[0] = (num >> 8) & 0xFF;
+		dest[1] = num & 0xFF;
+		return 2;
+	} else {
+			dest[0] = num & 0xFF;
+		return 1;
+	}
+	return 0;
+}
+
+uint64_t bytes_uint64(const char *buffer, size_t offset, int length)
+{
+
+	if (length == 8 || length <= 0) {
+        uint64_t s0 = buffer[offset] & 0xff;
+        uint64_t s1 = buffer[offset+1] & 0xff;
+        uint64_t s2 = buffer[offset+2] & 0xff;
+        uint64_t s3 = buffer[offset+3] & 0xff;
+        uint64_t s4 = buffer[offset+4] & 0xff;
+        uint64_t s5 = buffer[offset+5] & 0xff;
+        uint64_t s6 = buffer[offset+6] & 0xff;
+        uint64_t s7 = buffer[offset+7] & 0xff;
+	return (s7 |  (s6 << 8)  |  (s5 << 16) |    (s4 << 24) |  (s3 << 32)  |  (s2 << 40)  |   (s1 << 48)  |   (s0 << 56));
+	}
+	else if (length == 7) {
+	        uint64_t s0 = buffer[offset] & 0xff;
+            uint64_t s1 = buffer[offset+1] & 0xff;
+            uint64_t s2 = buffer[offset+2] & 0xff;
+            uint64_t s3 = buffer[offset+3] & 0xff;
+            uint64_t s4 = buffer[offset+4] & 0xff;
+            uint64_t s5 = buffer[offset+5] & 0xff;
+            uint64_t s6 = buffer[offset+6] & 0xff;
+	return (s6 | (s5 << 8) | (s4 << 16) | (s3 << 24) | (s2 << 32) | (s1 << 40) | (s0 << 48));
+	}
+    else if (length == 6) {
+	        uint64_t s0 = buffer[offset] & 0xff;
+            uint64_t s1 = buffer[offset+1] & 0xff;
+            uint64_t s2 = buffer[offset+2] & 0xff;
+            uint64_t s3 = buffer[offset+3] & 0xff;
+            uint64_t s4 = buffer[offset+4] & 0xff;
+            uint64_t s5 = buffer[offset+5] & 0xff;
+	return (s5 | (s4 << 8) | (s3 << 16) | (s2 << 24) | (s1 << 32) | (s0 << 40));
+	}
+    else if (length == 5) {
+	        uint64_t s0 = buffer[offset] & 0xff;
+            uint64_t s1 = buffer[offset+1] & 0xff;
+            uint64_t s2 = buffer[offset+2] & 0xff;
+            uint64_t s3 = buffer[offset+3] & 0xff;
+            uint64_t s4 = buffer[offset+4] & 0xff;
+	return (s4 | (s3 << 8) | (s2 << 16) | (s1 << 24) | (s0 << 32));
+    }
+	else if (length == 4) {
+	return (
+            ((buffer[offset + 3]) & 0xFF) |
+            ((buffer[offset + 2] << 8) & 0xFF) |
+            ((buffer[offset + 1] << 16) & 0xFF) |
+            ((buffer[offset] << 24) & 0xFF));
+
+	}
+	else if (length == 3) {
+    	return (
+    	        ((buffer[offset + 2]) & 0xFF) |
+                ((buffer[offset + 1] << 8) & 0xFF) |
+                ((buffer[offset] << 16) & 0xFF)
+                );
+    }
+    else if (length == 2) {
+        	return (
+    	        ((buffer[offset + 1]) & 0xFF) |
+                ((buffer[offset] << 8) & 0xFF)
+                );
+    }
+    else if (length == 1) {
+        	return (((buffer[offset]) & 0xFF));
+    }
+    return 0;
+}
+

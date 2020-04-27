@@ -7,10 +7,10 @@ OR_EXEC ?= $(shell which openresty)
 # LUAROCKS_VER ?= $(shell luarocks --version | grep -E -o  "luarocks [0-9]+.")
 LUAJIT_DIR ?= $(shell ${OR_EXEC} -V 2>&1 | grep prefix | grep -Eo 'prefix=(.*)/nginx\s+--' | grep -Eo '/.*/')luajit
 
-CFLAGS := -O3 -g -Wall -fpic -std=c99 -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast
+CFLAGS := -O3 -g -Wall -Wextra -Werror -fpic
 
 C_SO_NAME := librestyxxhashencode.so
-LDFLAGS := -shared
+LDFLAGS := -shared -L/usr/lib64/ -lxxhash
 
 # on Mac OS X, one should set instead:
 # for Mac OS X environment, use one of options
@@ -22,7 +22,7 @@ endif
 MY_CFLAGS := $(CFLAGS) -DBUILDING_SO
 MY_LDFLAGS := $(LDFLAGS) -fvisibility=hidden
 
-OBJS := src/modp_bc64w.o ###src/.o
+OBJS := src/modp_bc64w.o src/modp_b64w.o
 
 .PHONY: default
 default: compile
@@ -46,10 +46,10 @@ clean:
 compile: ${R3_FOLDER} ${R3_CONGIGURE} ${R3_STATIC_LIB} $(C_SO_NAME)
 
 ${OBJS} : %.o : %.c
-	$(CC) $(MY_CFLAGS) -c $< -o $@
+	cc $(MY_CFLAGS) -c $< -o $@
 
 ${C_SO_NAME} : ${OBJS}
-	$(CC) $(MY_LDFLAGS) $(OBJS) -o $@
+	cc $(MY_LDFLAGS) $(OBJS) -o $@
 
 
 ### install:      Install the library to runtime

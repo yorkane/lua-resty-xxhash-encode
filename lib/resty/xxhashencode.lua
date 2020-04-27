@@ -27,21 +27,8 @@ local encoding = ffi.load("/usr/lib/lua/5.1/librestyxxhashencode.so")
 --local encoding = ffi.load("/usr/lib/lua/5.1/encoding.so")
 _M.encode = encoding
 ffi.cdef([[
-size_t modp_b64_encode(char* dest, unsigned char* str, size_t len,
-    uint32_t no_padding);
-size_t modp_b64_decode(char* dest, const char* src, size_t len);
 size_t modp_b64w_encode(char* dest, const char* str, size_t len);
 size_t modp_b64w_decode(char* dest, const char* src, size_t len);
-size_t b32_encode(char* dest, const char* src, size_t len, uint32_t no_padding,
-    uint32_t hex);
-size_t b32_decode(char* dest, const char* src, size_t len, uint32_t hex);
-size_t modp_b16_encode(char* dest, const char* str, size_t len,
-    uint32_t out_in_lowercase);
-size_t modp_b16_decode(char* dest, const char* src, size_t len);
-size_t modp_b2_encode(char* dest, const char* str, size_t len);
-size_t modp_b2_decode(char* dest, const char* str, size_t len);
-size_t modp_b85_encode(char* dest, const char* str, size_t len);
-size_t modp_b85_decode(char* dest, const char* str, size_t len);
 
 size_t b642bin(char* bin_str, const char* b64_str);
 unsigned int int_base64(char* dest, unsigned int num);
@@ -79,28 +66,6 @@ local function base64_encoded_length(len, no_padding)
 			floor((len + 2) / 3) * 4
 end
 
-function _M.encode_base64(s, no_padding)
-	s = check_encode_str(s)
-
-	local slen = #s
-	local no_padding_bool = false
-	local no_padding_int = 0
-
-	if no_padding then
-		if no_padding ~= true then
-			error("boolean argument only")
-		end
-
-		no_padding_bool = true
-		no_padding_int = 1
-	end
-
-	local dlen = base64_encoded_length(slen, no_padding_bool)
-	local dst = get_string_buf(dlen)
-	local r_dlen = encoding.modp_b64_encode(dst, s, slen, no_padding_int)
-	return ffi_string(dst, r_dlen)
-end
-
 function _M.encode_base64url(s)
 	if type(s) ~= "string" then
 		return nil, "must provide a string"
@@ -121,19 +86,6 @@ end
 
 local function base64_decoded_length(len)
 	return floor((len + 3) / 4) * 3
-end
-
-function _M.decode_base64(s)
-	check_decode_str(s, 1)
-
-	local slen = #s
-	local dlen = base64_decoded_length(slen)
-	local dst = get_string_buf(dlen)
-	local r_dlen = encoding.modp_b64_decode(dst, s, slen)
-	if r_dlen == -1 then
-		return nil
-	end
-	return ffi_string(dst, r_dlen)
 end
 
 function _M.decode_base64url(s)
@@ -638,12 +590,14 @@ function _M.bytes_uint64(byte_buff, index, length)
 	return encoding.bytes_uint(byte_buff, index, length)
 end
 
-function _M.long_byte(num)
-	-- todo waiting for c binding
+function _M.uint64_bytes(num)
+	local buff = get_string_buf(4)
+	local size = encoding.uint64_bytes(buff, num)
+	return ffi_string(buff, size)
 end
 
-function _M.byte_long(num)
-	-- todo waiting for c binding
+function _M.bytes_uint64(byte_buff, index, length)
+	return encoding.bytes_uint64(byte_buff, index or 0, length or 8)
 end
 
 function _M.list_long_bytes(list)

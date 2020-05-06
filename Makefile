@@ -26,7 +26,7 @@ OBJC := $(SRC:.c=.o)
 XxhashVersion := 0.7.3
 
 .PHONY: default
-default: compile
+default: deps compile
 
 ### test:         Run test suite. Use test=... for specific tests
 .PHONY: test
@@ -65,7 +65,13 @@ install:
 ### Downloading xxhash github
 .PHONY: deps
 deps:
-	sh install_xxhash.sh
+	if [ -d "src/xxHash" ]; then \
+        echo "xxHash exists";\
+    else\
+    	sh install_xxhash.sh;\
+    fi
+
+
 
 ### lint:         Lint Lua source code
 .PHONY: lint

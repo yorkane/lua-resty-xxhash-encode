@@ -1,5 +1,5 @@
 package = "lua-resty-xxhash-encode"
-version = "0-0"
+version = "1.0-0"
 source = {
     url = "git://github.com/yorkane/lua-resty-xxhash-encode",
     branch = "master",

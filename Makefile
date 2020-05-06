@@ -21,8 +21,9 @@ endif
 
 MY_CFLAGS := $(CFLAGS) -DBUILDING_SO
 MY_LDFLAGS := $(LDFLAGS) -fvisibility=hidden
-
-OBJS := src/modp_bc64w.o src/modp_b64w.o
+SRC := $(wildcard src/*.c)
+OBJC := $(SRC:.c=.o)
+XxhashVersion := 0.7.3
 
 .PHONY: default
 default: compile
@@ -37,7 +38,7 @@ test: compile
 ### clean:        Remove generated files
 .PHONY: clean
 clean:
-	rm -f $(C_SO_NAME) $(OBJS) ${R3_CONGIGURE}
+	rm -f $(C_SO_NAME) $(OBJC) ${R3_CONGIGURE}
 
 
 ### compile:      Compile library
@@ -45,11 +46,11 @@ clean:
 
 compile: ${R3_FOLDER} ${R3_CONGIGURE} ${R3_STATIC_LIB} $(C_SO_NAME)
 
-${OBJS} : %.o : %.c
-	cc $(MY_CFLAGS) -c $< -o $@
+#${OBJS} : %.o : %.c
+#	cc $(MY_CFLAGS) -c $< -o $@
 
-${C_SO_NAME} : ${OBJS}
-	cc $(MY_LDFLAGS) $(OBJS) -o $@
+${C_SO_NAME} : ${OBJC}
+	cc $(MY_LDFLAGS) $(OBJC) -o $@
 
 
 ### install:      Install the library to runtime
@@ -60,15 +61,11 @@ install:
 	$(INSTALL) $(C_SO_NAME) $(INST_LIBDIR)/
 
 
-### deps:         Installation dependencies
+
+### Downloading xxhash github
 .PHONY: deps
 deps:
-ifneq ($(LUAROCKS_VER),luarocks 3.)
-	luarocks install rockspec/lua-resty-radixtree-master-0-0.rockspec --tree=deps --only-deps --local
-else
-	luarocks install --lua-dir=$(LUAJIT_DIR) rockspec/lua-resty-radixtree-master-0-0.rockspec --tree=deps --only-deps --local
-endif
-
+	sh install_xxhash.sh
 
 ### lint:         Lint Lua source code
 .PHONY: lint

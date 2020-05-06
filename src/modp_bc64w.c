@@ -14,7 +14,7 @@
 #include "modp_stdint.h"
 #include "math.h"
 #include <stdio.h>
-#include "xxhash.h"
+#include <xxhash.h>
 size_t modp_b64w_encode(char *dest, unsigned char *str, size_t len); //refer to modp_b64w.c
 
 static char base64_table[65] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
@@ -139,27 +139,6 @@ uint32_t xxhash32(const char *str, size_t length, unsigned int const seed)
 uint64_t xxhash64(const char *str, size_t length, unsigned long long const seed)
 {
     unsigned long long const hash = XXH64(str, length, seed);
-//    printf("xxhash64(%s) = %llu \n",str,  hash);
-    unsigned long long Value10 = hash;
-    unsigned char dst[8];
-        int size = 0;
-        while (Value10 > 0)
-        {
-            long v = fmod(Value10, 64);
-            // printf("%ld mod(64) = %ld \n", Value10, v);
-            dst[size] = base64_table[v];
-            Value10 /= 64;
-            size++;
-        }
-     int i = 0;
-     int temp = 0;
-     for (i = 0; i < (size / 2); i++)
-     {
-         temp = dst[i];
-         dst[i] = dst[size - i - 1];
-         dst[size - i - 1] = temp;
-     }
-//    printf("xxhash64 base64(%s) = %llu \n", dst, hash);
     return hash;
 }
 
@@ -167,28 +146,12 @@ size_t xxhash64_b64(char *dest, const char *str, size_t length, unsigned long lo
 {
     unsigned long long lhash = xxhash64(str, length, seed);
     return long_base64(dest, lhash);
-//    unsigned char bytes[8];
-//    bytes[0] = (lhash >> 56) & 0xFF;
-//    bytes[1] = (lhash >> 48) & 0xFF;
-//    bytes[2] = (lhash >> 40) & 0xFF;
-//    bytes[3] = (lhash >> 32) & 0xFF;
-//    bytes[4] = (lhash >> 24) & 0xFF;
-//    bytes[5] = (lhash >> 16) & 0xFF;
-//    bytes[6] = (lhash >> 8) & 0xFF;
-//    bytes[7] = lhash & 0xFF;
-//    return modp_b64w_encode(dest, bytes, 8);
 }
 
 size_t xxhash32_b64(char *dest, const char *str, size_t length, unsigned int const seed)
 {
     unsigned int lhash = xxhash32(str, length, seed);
     return int_base64(dest, lhash);
-//    unsigned char bytes[4];
-//    bytes[0] = (lhash >> 24) & 0xFF;
-//    bytes[1] = (lhash >> 16) & 0xFF;
-//    bytes[2] = (lhash >> 8) & 0xFF;
-//    bytes[3] = lhash & 0xFF;
-//    return modp_b64w_encode(dest, bytes, 4);
 }
 
 uint32_t get_unsigned_int(const char *buffer, int offset, int length)
@@ -233,26 +196,11 @@ uint32_t get_unsigned_int_from(int a, int b, int c, int d)
 
 size_t uint_bytes(char *dest, uint32_t num)
 {
-	if (num > 0xFF000000) {
-		dest[0] = (num >> 24) & 0xFF;
-        dest[1] = (num >> 16) & 0xFF;
-        dest[2] = (num >> 8) & 0xFF;
-        dest[3] = num & 0xFF;
-        return 4;
-	} else if (num > 0x00FF0000){
-		dest[0] = (num >> 16) & 0xFF;
-		dest[1] = (num >> 8) & 0xFF;
-		dest[2] = num & 0xFF;
-		return 3;
-	} else if (num > 0x0000FF00){
-		dest[0] = (num >> 8) & 0xFF;
-		dest[1] = num & 0xFF;
-		return 2;
-	} else {
-			dest[0] = num & 0xFF;
-		return 1;
-	}
-	return 0;
+	dest[0] = (num >> 24) & 0xFF;
+	dest[1] = (num >> 16) & 0xFF;
+	dest[2] = (num >> 8) & 0xFF;
+	dest[3] = num & 0xFF;
+	return 4;
 }
 
 size_t bytes_uint(const char *str, size_t index, int length)
@@ -262,64 +210,16 @@ size_t bytes_uint(const char *str, size_t index, int length)
 
 size_t uint64_bytes(char *dest, uint64_t num)
 {
-	if (num > 0xFF00000000000000) {
-		dest[0] = (num >> 56) & 0xFF;
-		dest[1] = (num >> 48) & 0xFF;
-		dest[2] = (num >> 40) & 0xFF;
-		dest[3] = (num >> 32) & 0xFF;
-		dest[4] = (num >> 24) & 0xFF;
-        dest[5] = (num >> 16) & 0xFF;
-        dest[6] = (num >> 8) & 0xFF;
-        dest[7] = num & 0xFF;
-        return 8;
-	}
-	else if (num > 0xFF000000000000) {
-		dest[0] = (num >> 48) & 0xFF;
-		dest[1] = (num >> 40) & 0xFF;
-		dest[2] = (num >> 32) & 0xFF;
-		dest[3] = (num >> 24) & 0xFF;
-        dest[4] = (num >> 16) & 0xFF;
-        dest[5] = (num >> 8) & 0xFF;
-        dest[6] = num & 0xFF;
-        return 7;
-	}
-	else if (num > 0xFF0000000000) {
-		dest[0] = (num >> 40) & 0xFF;
-   		dest[1] = (num >> 32) & 0xFF;
-		dest[2] = (num >> 24) & 0xFF;
-        dest[3] = (num >> 16) & 0xFF;
-        dest[4] = (num >> 8) & 0xFF;
-        dest[5] = num & 0xFF;
-        return 6;
-	}
-	else if (num > 0xFF00000000) {
-		dest[0] = (num >> 32) & 0xFF;
-		dest[1] = (num >> 24) & 0xFF;
-        dest[2] = (num >> 16) & 0xFF;
-        dest[3] = (num >> 8) & 0xFF;
-        dest[4] = num & 0xFF;
-        return 5;
-	}
-	else if (num > 0xFF000000) {
-		dest[0] = (num >> 24) & 0xFF;
-        dest[1] = (num >> 16) & 0xFF;
-        dest[2] = (num >> 8) & 0xFF;
-        dest[3] = num & 0xFF;
-        return 4;
-	} else if (num > 0x00FF0000){
-		dest[0] = (num >> 16) & 0xFF;
-		dest[1] = (num >> 8) & 0xFF;
-		dest[2] = num & 0xFF;
-		return 3;
-	} else if (num > 0x0000FF00){
-		dest[0] = (num >> 8) & 0xFF;
-		dest[1] = num & 0xFF;
-		return 2;
-	} else {
-			dest[0] = num & 0xFF;
-		return 1;
-	}
-	return 0;
+	dest[0] = (num >> 56) & 0xFF;
+	dest[1] = (num >> 48) & 0xFF;
+	dest[2] = (num >> 40) & 0xFF;
+	dest[3] = (num >> 32) & 0xFF;
+	dest[4] = (num >> 24) & 0xFF;
+	dest[5] = (num >> 16) & 0xFF;
+	dest[6] = (num >> 8) & 0xFF;
+	dest[7] = num & 0xFF;
+//	printf("byte = %s\n", dest);
+    return 8;
 }
 
 uint64_t bytes_uint64(const char *buffer, size_t offset, int length)

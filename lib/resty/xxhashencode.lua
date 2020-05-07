@@ -3,30 +3,65 @@ local tostring, tonumber, reverse, floor, byte, sub, char = tostring, tonumber, 
 local type = type
 local ceil = math.ceil
 local ffi = require "ffi"
-local ffi_utils = require('klib.base.ffi_utils')
-local get_string_buf = ffi_utils.get_string_buf
-local create_int_list = ffi_utils.create_number_list
-local ffi_string = ffi.string
+local ffi_string, ffi_new = ffi.string, ffi.new
 local bit = require('bit')
 local band, bor, bxor, lshift, rshift, rolm, bnot = bit.band, bit.bor, bit.bxor, bit.lshift, bit.rshift, bit.rol, bit.bnot
 local new_tab, insert, mod = table.new, table.insert, math.fmod
 
-local array, hashmap, release, fetch, new_tab = require('resty.tablepool').locally()
+local tag  = 'xxhash'
+local tablepool = require('resty.tablepool')
+local array = function(size)
+	return tablepool.fetch(tag, size, 0)
+end
+local release = function(tab, noclear)
+	return tablepool.release(tag, tab, noclear)
+end
+
 
 local _M = {
-	version = "1.3.2",
+	version = "1.3.4",
 	max_int = 4294967295,
 	max_int_b64 = 'D_____',
 	max_long = 9199999999999999999,
 	max_long_b64 = 'H-s90GdmAAA',
-	max_int_chars = 'ÿÿÿÿ' -- This value will be overwritten by following code
+	max_int_chars = 'ÿÿÿÿ', -- This value will be overwritten by following code
+	max_int_chars_1 = 'sssdsfsfsd'
 }
---local encoding = ffi_utils.load_shared_lib("klib/base/encoding.so")
---local encoding = ffi_utils.load_shared_lib("librestyxxhashencode.so")
-local encoding = ffi.load("/usr/lib/lua/5.1/librestyxxhashencode.so")
---local encoding = ffi.load("/usr/lib/lua/5.1/encoding.so")
+
+local str_buf_size = 4096
+local str_buf
+local c_buf_type = ffi.typeof("char[?]")
+local c_size_t_list = ffi.typeof("size_t[?]")
+local function get_string_buf(size)
+	if size > str_buf_size then
+		return ffi_new(c_buf_type, size)
+	end
+	if not str_buf then
+		str_buf = ffi_new(c_buf_type, str_buf_size)
+	end
+	return str_buf
+end
+
+local encoding = ffi.load("librestyxxhashencode.so")
+
 _M.encode = encoding
 ffi.cdef([[
+
+size_t modp_b2_encode(char* dest, const char* str, size_t len);
+size_t modp_b2_decode(char* dest, const char* str, size_t len);
+
+size_t modp_b16_encode(char* dest, const char* str, size_t len,
+    uint32_t out_in_lowercase);
+size_t modp_b16_decode(char* dest, const char* src, size_t len);
+
+size_t b32_encode(char* dest, const char* src, size_t len, uint32_t no_padding,
+    uint32_t hex);
+size_t b32_decode(char* dest, const char* src, size_t len, uint32_t hex);
+
+size_t modp_b85_encode(char* dest, const char* str, size_t len);
+size_t modp_b85_decode(char* dest, const char* str, size_t len);
+
+
 size_t modp_b64w_encode(char* dest, const char* str, size_t len);
 size_t modp_b64w_decode(char* dest, const char* src, size_t len);
 
@@ -40,6 +75,7 @@ size_t xxhash32_b64(char* dest, const char* str, size_t length, unsigned int con
 unsigned long djb2_hash(const char* str);
 unsigned int xxhash32(const char* str, size_t length,  unsigned int seed);
 unsigned long long  xxhash64(const char* str, size_t length, unsigned long long const seed);
+uint64_t xxh3(const char *str, size_t length, unsigned long long const seed);
 unsigned int get_unsigned_int(const char *buffer, int offset, int length);
 unsigned int get_unsigned_int_from(int a, int b, int c, int d);
 
@@ -107,6 +143,10 @@ local function base32_encoded_length(len)
 	return floor((len + 4) / 5) * 8
 end
 
+---encode_base32
+---@param s string @ byte to encode
+---@param no_padding boolean
+---@param hex boolean @ with hex-char table or standard-char table
 local function encode_base32(s, no_padding, hex)
 	s = check_encode_str(s)
 
@@ -114,7 +154,7 @@ local function encode_base32(s, no_padding, hex)
 	local no_padding_int = no_padding and 1 or 0
 	local dlen = base32_encoded_length(slen)
 	local dst = get_string_buf(dlen)
-	local r_dlen = encoding.b32_encode(dst, s, slen, no_padding_int, hex)
+	local r_dlen = encoding.b32_encode(dst, s, slen, no_padding_int, hex and 1 or 0)
 	return ffi_string(dst, r_dlen)
 end
 
@@ -291,28 +331,14 @@ end
 ---int_base64 this method is much faster than long_base64, max int 2147483647, but you can exceed 1 digit to 21474836479
 ---@param int number @ max number is 2147483647, which is `B_____`
 ---@return string @ base64 string
-function _M.int_base64(int, length)
-	local ext
-	--if int > _M.max_int then
-	--	ext = int % 10 -- get extra digit
-	--	int = floor(int / 10) -- 10 time smaller
-	--end
+function _M.int_base64(int)
 	local dst = get_string_buf(7)
 	local r_dlen = encoding.int_base64(dst, int)
 	if r_dlen == -1 then
 		return nil, "invalid input"
 	end
 	local str
-	--if ext then
-	--	str =  (dst, r_dlen) .. '_' .. ext -- attach the extra digit as `Byp_5-_7`
-	--end
 	str = ffi_string(dst, r_dlen)
-	if length then
-		local len = #str
-		if len < length then
-			str = string.rep('A', length - len) .. str
-		end
-	end
 	return str
 end
 
@@ -355,7 +381,7 @@ end
 -----xxhash64_b64 digest text into hashed base64 text
 -----@param str string
 -----@param seed number
-function _M.xxhash64_b64(str, seed)
+function _M.xxhash64_b64(str, seed, with_padding)
 	if not str then
 		return nil, "empty input"
 	end
@@ -364,7 +390,12 @@ function _M.xxhash64_b64(str, seed)
 	if r_dlen == -1 then
 		return nil, "invalid input"
 	end
-	return ffi_string(dst, r_dlen)
+	local res = ffi_string(dst, r_dlen)
+	if r_dlen == 11 or not with_padding then
+		return res
+	end
+	local rep = string.rep('=', 11 - r_dlen)
+	return rep
 	--return reverse(ffi_string(dst, r_dlen))
 end
 
@@ -404,6 +435,11 @@ end
 
 function _M.xxhash32(str, seed)
 	local n = encoding.xxhash32(str, #str, seed or 33)
+	return n
+end
+
+function _M.xxhash3(str, seed)
+	local n = encoding.xxh3(str, #str, seed or 33)
 	return n
 end
 
@@ -570,40 +606,78 @@ function _M.int_arr_bytes(int_arr, seed)
 	return concat(int_arr)
 end
 
-function _M.uint_bytes(unsigned_int)
+---uint_bytes FFI version
+---@param unsigned_int number
+---@return string
+function _M.ffi_uint_bytes(unsigned_int)
 	local buff = get_string_buf(4)
 	local size = encoding.uint_bytes(buff, unsigned_int)
 	return ffi_string(buff, size)
 end
 
-function _M.bytes_uint(byte_buff, index, length)
-	return encoding.bytes_uint(byte_buff, index, length)
+---bytes_uint FFI version
+---@param byte_buff string
+---@param index number @default with 0
+---@param length number @ default with whole buff
+---@return number
+function _M.ffi_bytes_uint(byte_buff, index, length)
+	if index then
+		index = index - 1
+	else
+		index = 0
+	end
+	return tonumber(encoding.bytes_uint(byte_buff, index, length or #byte_buff))
 end
 
-function _M.uint64_bytes(unsigned_int64)
-	local buff = get_string_buf(4)
-	local size = encoding.uint_bytes(buff, unsigned_int64)
-	return ffi_string(buff, size)
-end
-
+---bytes_uint64
+---@param byte_buff string
+---@param index number @default with 0
+---@param length number @ default with whole buff
 function _M.bytes_uint64(byte_buff, index, length)
-	return encoding.bytes_uint(byte_buff, index, length)
+	if index then
+		index = index - 1
+	else
+		index = 0
+	end
+	return encoding.bytes_uint64(byte_buff, index, length or #byte_buff)
 end
 
+---uint64_bytes
+---@param num number @ unsigned long long could ffi object
+---@return string
 function _M.uint64_bytes(num)
-	local buff = get_string_buf(4)
+	local buff = get_string_buf(8)
 	local size = encoding.uint64_bytes(buff, num)
 	return ffi_string(buff, size)
 end
 
-function _M.bytes_uint64(byte_buff, index, length)
-	return encoding.bytes_uint64(byte_buff, index or 0, length or 8)
+---xxhash64_bytes hash string into 8 bytes
+---@param str string
+---@param seed number
+---@return string
+function _M.xxhash64_bytes(str, seed)
+	local num = _M.xxhash64(str, seed)
+	return _M.uint64_bytes(num)
+end
+
+---xxhash32_bytes hash string into 4 bytes
+---@param str string
+---@param seed number
+---@return string
+function _M.xxhash32_bytes(str, seed)
+	local num = _M.xxhash32(str, seed)
+	return _M.ffi_uint_bytes(num)
 end
 
 function _M.list_long_bytes(list)
 	-- todo waiting for c binding
 end
 
+---list_int_bytes
+---@param list number[] @number array
+---@param is_unsigned boolean @ indicate is int or unsigned int
+---@param sec_length number @bytes list element section length, 1-4
+---@return string
 function _M.list_int_bytes(list, is_unsigned, sec_length)
 	local len = #list
 	local arr = array(len)
@@ -626,6 +700,11 @@ function _M.list_int_bytes(list, is_unsigned, sec_length)
 	return str
 end
 
+---bytes_list_int
+---@param bytes string @byte buff
+---@param is_unsigned boolean @ indicate is int or unsigned int
+---@param sec_length number @bytes list element section length, 1-4
+---@return number[]
 function _M.bytes_list_int(bytes, is_unsigned, sec_length)
 	local len = #bytes
 	local arr = new_tab(math.floor(len / 4), 0)

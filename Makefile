@@ -38,13 +38,13 @@ test: compile
 ### clean:        Remove generated files
 .PHONY: clean
 clean:
-	rm -f $(C_SO_NAME) $(OBJC) ${R3_CONGIGURE}
+	rm -f $(C_SO_NAME) $(OBJC)
 
 
 ### compile:      Compile library
 .PHONY: compile
 
-compile: ${R3_FOLDER} ${R3_CONGIGURE} ${R3_STATIC_LIB} $(C_SO_NAME)
+compile: $(C_SO_NAME)
 
 #${OBJS} : %.o : %.c
 #	cc $(MY_CFLAGS) -c $< -o $@
@@ -78,21 +78,3 @@ deps:
 lint:
 	luacheck -q lib
 
-
-### bench:        Run benchmark
-.PHONY: bench
-bench:
-	resty -I=./lib -I=./deps/share/lua/5.1 benchmark/match-parameter.lua
-	@echo ""
-	resty -I=./lib -I=./deps/share/lua/5.1 benchmark/match-prefix.lua
-	@echo ""
-	resty -I=./lib -I=./deps/share/lua/5.1 benchmark/match-static.lua
-	@echo ""
-
-
-### help:         Show Makefile rules
-.PHONY: help
-help:
-	@echo Makefile rules:
-	@echo
-	@grep -E '^### [-A-Za-z0-9_]+:' Makefile | sed 's/###/   /'

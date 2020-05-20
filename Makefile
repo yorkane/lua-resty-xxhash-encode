@@ -10,7 +10,7 @@ LUAJIT_DIR ?= $(shell ${OR_EXEC} -V 2>&1 | grep prefix | grep -Eo 'prefix=(.*)/n
 CFLAGS := -O3 -g -Wall -Wextra -Werror -fpic
 
 C_SO_NAME := librestyxxhashencode.so
-LDFLAGS := -shared -L/usr/lib64/ -lxxhash
+LDFLAGS := -shared -L/usr/lib64/ -L/usr/lib/ -L/usr/local/openresty/site/lualib/ -lxxhash -Wl,-rpath,/usr/local/openresty/site/lualib/
 
 # on Mac OS X, one should set instead:
 # for Mac OS X environment, use one of options

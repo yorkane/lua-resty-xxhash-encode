@@ -42,7 +42,31 @@ local function get_string_buf(size)
 	return str_buf
 end
 
-local encoding = ffi.load("librestyxxhashencode.so")
+local function load_shared_lib(so_name)
+	local tried_paths = {}
+	local i = 1
+	for k, _ in package.cpath:gmatch("[^;]+") do
+		local fpath = k:match("(.*/)")
+		fpath = fpath .. so_name
+		local f = io.open(fpath)
+		if f ~= nil then
+			io.close(f)
+			return ffi.load(fpath)
+		end
+		tried_paths[i] = fpath
+		i = i + 1
+	end
+	local f = io.open(so_name)
+	if f ~= nil then
+		io.close(f)
+		return ffi.load(so_name)
+	end
+	tried_paths[#tried_paths + 2] = 'tried above paths but can not load ' .. so_name
+	error(concat(tried_paths, '\n'))
+end
+
+local encoding = load_shared_lib("librestyxxhashencode.so")
+
 
 _M.encode = encoding
 ffi.cdef([[

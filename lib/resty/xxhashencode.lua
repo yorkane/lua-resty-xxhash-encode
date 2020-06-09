@@ -90,6 +90,8 @@ size_t modp_b64w_encode(char* dest, const char* str, size_t len);
 size_t modp_b64w_decode(char* dest, const char* src, size_t len);
 
 size_t b642bin(char* bin_str, const char* b64_str);
+
+uint64_t parse_num(const char *str);
 unsigned int int_base64(char* dest, unsigned int num);
 unsigned int base64_int(const char* dest, int num);
 size_t long_base64(char* dest, long num);
@@ -119,6 +121,10 @@ local function check_encode_str(s)
 	end
 
 	return s
+end
+
+function _M.parse_num(str)
+	return encoding.parse_num(str)
 end
 
 local function base64_encoded_length(len, no_padding)

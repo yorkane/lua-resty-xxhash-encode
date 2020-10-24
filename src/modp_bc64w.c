@@ -15,8 +15,11 @@
 #include "math.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <xxhash.h>
-size_t modp_b64w_encode(char *dest, unsigned char *str, size_t len); //refer to modp_b64w.c
+#include "xxh3.h"
+
+typedef unsigned long long XXH64_hash_t;
+
+size_t modp_b64w_encode(char *dest, const char *str, size_t len); //refer to modp_b64w.c
 
 static char base64_table[65] = {'-', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
                                 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
@@ -148,6 +151,42 @@ uint64_t xxhash64(const char *str, size_t length, unsigned long long const seed)
     unsigned long long const hash = XXH64(str, length, seed);
     return hash;
 }
+
+
+
+size_t xxhash128(const void* data, size_t length, char *dest, uint64_t seed)
+{
+	XXH128_hash_t hash = XXH128(data, length, seed);
+	uint64_t num = hash.high64;
+	dest[0] = (num >> 56) & 0xFF;
+	dest[1] = (num >> 48) & 0xFF;
+	dest[2] = (num >> 40) & 0xFF;
+	dest[3] = (num >> 32) & 0xFF;
+	dest[4] = (num >> 24) & 0xFF;
+	dest[5] = (num >> 16) & 0xFF;
+	dest[6] = (num >> 8) & 0xFF;
+	dest[7] = num & 0xFF;
+	num = hash.low64;
+	dest[8] = (num >> 56) & 0xFF;
+	dest[9] = (num >> 48) & 0xFF;
+	dest[10] = (num >> 40) & 0xFF;
+	dest[11] = (num >> 32) & 0xFF;
+	dest[12] = (num >> 24) & 0xFF;
+	dest[13] = (num >> 16) & 0xFF;
+	dest[14] = (num >> 8) & 0xFF;
+	dest[15] = num & 0xFF;
+   	return 16;
+}
+
+
+size_t xxhash128_b64(char *dest_b64, char *dest_byte, const char *str, size_t length, unsigned long long const seed)
+{
+    xxhash128(str, length, dest_byte, seed);
+
+    return modp_b64w_encode(dest_b64, dest_byte , 23);
+//	return 16;
+}
+
 
 size_t xxhash64_b64(char *dest, const char *str, size_t length, unsigned long long const seed)
 {

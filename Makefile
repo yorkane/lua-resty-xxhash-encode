@@ -1,16 +1,19 @@
 INST_PREFIX ?= /usr
-INST_LIBDIR ?= $(INST_PREFIX)/lib/lua/5.1
-INST_LUADIR ?= $(INST_PREFIX)/share/lua/5.1
+INST_LIBDIR ?= /usr/local/openresty/site/lualib
+INST_LUADIR ?= /usr/local/openresty/site/lualib
+#INST_LIBDIR ?= $(INST_PREFIX)/lib/lua/5.1
+#INST_LUADIR ?= $(INST_PREFIX)/share/lua/5.1
 INSTALL ?= install
 UNAME ?= $(shell uname)
 OR_EXEC ?= $(shell which openresty)
 # LUAROCKS_VER ?= $(shell luarocks --version | grep -E -o  "luarocks [0-9]+.")
 LUAJIT_DIR ?= $(shell ${OR_EXEC} -V 2>&1 | grep prefix | grep -Eo 'prefix=(.*)/nginx\s+--' | grep -Eo '/.*/')luajit
 
-CFLAGS := -O3 -g -Wall -Wextra -Werror -fpic
+CFLAGS := -O3 -g -Wall -Wextra -Werror -fpic -Wno-unused-parameter
 
 C_SO_NAME := librestyxxhashencode.so
-LDFLAGS := -shared -L/usr/lib64/ -L/usr/lib/ -L/usr/local/openresty/site/lualib/ -lxxhash -Wl,-rpath,/usr/local/openresty/site/lualib/
+# LDFLAGS := -shared -L/usr/lib64/ -L/usr/lib/ -L/usr/local/openresty/site/lualib/ -lxxhash -Wl,-rpath,/usr/local/openresty/site/lualib/
+LDFLAGS := -shared -L./xxHash -L/usr/lib64/ -L/usr/lib/ -lxxhash
 
 # on Mac OS X, one should set instead:
 # for Mac OS X environment, use one of options
@@ -23,7 +26,7 @@ MY_CFLAGS := $(CFLAGS) -DBUILDING_SO
 MY_LDFLAGS := $(LDFLAGS) -fvisibility=hidden
 SRC := $(wildcard src/*.c)
 OBJC := $(SRC:.c=.o)
-XxhashVersion := 0.7.3
+XxhashVersion := 0.7.4
 
 .PHONY: default
 default: deps compile

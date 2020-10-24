@@ -8,7 +8,7 @@ local bit = require('bit')
 local band, bor, bxor, lshift, rshift, rolm, bnot = bit.band, bit.bor, bit.bxor, bit.lshift, bit.rshift, bit.rol, bit.bnot
 local new_tab, insert, mod = table.new, table.insert, math.fmod
 
-local tag  = 'xxhash'
+local tag = 'xxhash'
 local tablepool = require('resty.tablepool')
 local array = function(size)
 	return tablepool.fetch(tag, size, 0)
@@ -17,13 +17,12 @@ local release = function(tab, noclear)
 	return tablepool.release(tag, tab, noclear)
 end
 
-
 local _M = {
 	version = "1.3.4",
 	max_int = 4294967295,
 	max_int_b64 = 'D_____',
 	max_long = 9199999999999999999,
-	max_long_b64 = 'H-s90GdmAAA',
+	max_long_b64 = 'HHAs90Gdm---',
 	max_int_chars = 'ÿÿÿÿ', -- This value will be overwritten by following code
 	max_int_chars_1 = 'sssdsfsfsd'
 }
@@ -67,7 +66,6 @@ end
 
 local encoding = load_shared_lib("librestyxxhashencode.so")
 
-
 _M.encode = encoding
 ffi.cdef([[
 
@@ -89,7 +87,9 @@ size_t modp_b85_decode(char* dest, const char* str, size_t len);
 size_t modp_b64w_encode(char* dest, const char* str, size_t len);
 size_t modp_b64w_decode(char* dest, const char* src, size_t len);
 
-size_t b642bin(char* bin_str, const char* b64_str);
+size_t xxhash128_b64(char *dest_b64, char *dest_byte, const char *str, size_t length, unsigned long long const seed);
+size_t xxhash128(const void* data, size_t length, unsigned char *dest, uint64_t seed);
+
 
 uint64_t parse_num(const char *str);
 unsigned int int_base64(char* dest, unsigned int num);
@@ -343,21 +343,6 @@ function _M.decode_base85(s)
 	return ffi_string(dst, r_dlen)
 end
 
-function _M.base64_bin(s)
-	local slen = #s
-	if slen == 0 then
-		return ""
-	end
-	local dlen = base64_decoded_length(slen)
-	local dst = get_string_buf(30)
-	local r_dlen = encoding.b642bin(dst, s)
-	if r_dlen == -1 then
-		return nil, "invalid input"
-	end
-	--dump(r_dlen)
-	return ffi_string(dst, r_dlen)
-end
-
 ---int_base64 this method is much faster than long_base64, max int 2147483647, but you can exceed 1 digit to 21474836479
 ---@param int number @ max number is 2147483647, which is `B_____`
 ---@return string @ base64 string
@@ -471,6 +456,19 @@ end
 function _M.xxhash3(str, seed)
 	local n = encoding.xxh3(str, #str, seed or 33)
 	return n
+end
+
+function _M.xxhash128(str, seed)
+	local dst = get_string_buf(16)
+	local n = encoding.xxhash128(str, #str, dst, seed or 33)
+	return ffi_string(dst, 16)
+end
+
+function _M.xxhash128_b64(str, seed)
+	local dst1 = get_string_buf(23)
+	local dst2 = get_string_buf(16)
+	local n = encoding.xxhash128_b64(dst2, dst1, str, #str,  seed or 33)
+	return ffi_string(dst1, n), ffi_string(dst2, n)
 end
 
 ---int_byte convert unsigned int into `4 bytes` with high performance
@@ -755,10 +753,6 @@ function _M.bytes_list_int(bytes, is_unsigned, sec_length)
 		end
 	end
 	return arr
-end
-
-function _M.bytes_list_long()
-	-- todo waiting for c binding
 end
 
 return _M

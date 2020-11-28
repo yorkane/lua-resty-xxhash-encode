@@ -15,9 +15,7 @@
 #include "math.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "xxh3.h"
-
-typedef unsigned long long XXH64_hash_t;
+#include <xxh3.h>
 
 size_t modp_b64w_encode(char *dest, const char *str, size_t len); //refer to modp_b64w.c
 

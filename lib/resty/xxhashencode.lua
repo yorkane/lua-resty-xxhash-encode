@@ -9,7 +9,7 @@ local band, bor, bxor, lshift, rshift, rolm, bnot = bit.band, bit.bor, bit.bxor,
 local new_tab, insert, mod = table.new, table.insert, math.fmod
 
 local tag = 'xxhash'
-local tablepool = require('resty.tablepool')
+local tablepool = require('tablepool')
 local array = function(size)
 	return tablepool.fetch(tag, size, 0)
 end
@@ -695,10 +695,6 @@ end
 function _M.xxhash32_bytes(str, seed)
 	local num = _M.xxhash32(str, seed)
 	return _M.ffi_uint_bytes(num)
-end
-
-function _M.list_long_bytes(list)
-	-- todo waiting for c binding
 end
 
 ---list_int_bytes
